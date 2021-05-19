@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri May  7 01:49:42 2021
 Este script permite obtener datos de la 
 pagina de:
 http://cfmid2.wishartlab.com/predict    --->Versión 2.0
