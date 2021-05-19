@@ -38,7 +38,7 @@ for k in range(len(Tipo_de_origen)):
         # Se codifican asi: PubChem_op_N°
         cod=str(Pubchem.iloc[acum])
         cod=cod.replace(".0","")
-        Nombre.append(cod+"_op_"+str(i))
+        Nombre.append(cod+"_op_"+str(i+1))
         # smile asociado
         cod_smile.append(base_datos["SMILES"].iloc[acum])
         acum=acum+1 # acumulador posicion del pubchem
@@ -89,7 +89,7 @@ while rta>0:
     name=Nombres_archivos.get(Tipo_S)
     for i in range(len(url)):
         if url[i]!='fallo':
-            archivo=sp_theo.url_to_csv(url[i],direc+'/'+str(name[i]+1))
+            archivo=sp_theo.url_to_csv(url[i],direc+'/'+name[i])
     os.system ("cls")
     rta=int(input('Desea continuar: 1->Si 0->No\n: '))
     if rta==0:
