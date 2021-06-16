@@ -17,6 +17,7 @@ import pandas as pd
 import os
 # Libreria de scrapping
 from selenium import webdriver
+from selenium.webdriver.support.ui import Select
 #=INGRESO DE DATOS============================================================
 # Carga base de datos de excel como data frames
 n_base=input(' Ingrese el nombre de la base de datos\n Ejemplo-->metabolite_match_DB.xlsx o metabolite_match_DB.csv \n:')
@@ -93,9 +94,10 @@ for i in range(len(Tipo_de_origen)):
     lista_aductos=list(aduct_o.keys())
     lista_aduc_dict.update({str(Tp_o):lista_aductos}) 
 #=CREACION DE CARPETAS========================================================
-rta=1
+rta=2
 ubi='Resultados' # carpeta de ubicación resultados
-os.mkdir(ubi)
+if os.path.exists(ubi)==False:
+    os.mkdir(ubi)
 while rta>0:
     os.system ("cls")
     print('Tipo de origenes y cantidad de cada tipo')
@@ -103,40 +105,64 @@ while rta>0:
     # Recuerde que si termina en cero despues del punto decimal
     # debe omitirlo ejemplo 1.20 seria 1.2
     Tipo_S=input("Escriba el tipo de origen: ")
+    if Tipo_S[-1]=='0':
+        Tipo_S=Tipo_S[0:len(Tipo_S)-1]
     smiles=S_tipo.get(Tipo_S)
-    url=[]
+    url=[] 
+    # lista resultados positivos
+    lista_result={};fallo={}
+    # lista de aductos que simula el CFM-ID
+    adducts_p="[M+H]+","[M]+","[M+NH4]+","[M+Na]+","[M+K]+","[M+Li]+","Unknown"
+    adducts_n="[M-H]-","[M]-","[M+Cl]-","[M+HCOOH-H]-","[M+CH3COOH-H]-","[M-2H]2-","Unknown"
+    seleccion='0'
     #---Trabajo Bot------------------------------------------------------------
     # navegador
-    driver=webdriver.Firefox(executable_path="geckodriver.exe")
-    # lista resultados positivos
-    lista_result={};fallo=0
+    if rta==2:
+        driver=webdriver.Firefox(executable_path="geckodriver.exe")  
     for k in range(len(smiles)):
         # pagina de ingreso de smiles
         # cargar pagina
-        driver.get(page)        
+        driver.get(page)
         input_smile=driver.find_element_by_name("predict_query[compound]")
         input_smile.send_keys(smiles[k])
         os.system ("cls")
-        # Primer click submit envio de datos
-        print('Tipo de origen: '+Tipo_S)
-        print('\n Opciones vs Aductos asociados a cada opción')
-        # Clasificación de aductos    
-        diferencia=list(set(cols_aductos).difference(set(lista_aduc_dict.get(Tipo_S))))
-        df_aducto=dict_dF.get(Tipo_S)
-        df_aducto=df_aducto.drop(diferencia,axis=1)
-        Tp_max=float(Tipo_S)+rango;Tp_min=float(Tipo_S)-rango
-        lista_aducto_p=lista_aduc_dict.get(Tipo_S)
-        for i in range(len(lista_aducto_p)):
-            aduc_l=lista_aducto_p[i]
-            df_aducto.loc[(df_aducto[aduc_l]>Tp_max)|(df_aducto[aduc_l]<Tp_min),aduc_l] = ''
-        df_aducto=df_aducto.reset_index()
-        df_aducto=df_aducto.drop('index',axis=1)
-        print('\n',df_aducto)
-        A=input("\n Presione Enter para continuar")
+        if k==0:
+            print('\n Lista de aductos que simula CFM-ID')
+            print('\n postivos:',adducts_p)
+            print('\n negativos:',adducts_n)
+            # Primer click submit envio de datos
+            print('Tipo de origen: '+Tipo_S)
+            print('\n Opciones vs Aductos asociados a cada opción')
+            # Tipo de aducto
+            # Clasificación de aductos    
+            diferencia=list(set(cols_aductos).difference(set(lista_aduc_dict.get(Tipo_S))))
+            df_aducto=dict_dF.get(Tipo_S)
+            df_aducto=df_aducto.drop(diferencia,axis=1)
+            Tp_max=float(Tipo_S)+rango;Tp_min=float(Tipo_S)-rango
+            lista_aducto_p=lista_aduc_dict.get(Tipo_S)
+            for i in range(len(lista_aducto_p)):
+                aduc_l=lista_aducto_p[i]
+                df_aducto.loc[(df_aducto[aduc_l]>Tp_max)|(df_aducto[aduc_l]<Tp_min),aduc_l] = ''
+            df_aducto=df_aducto.reset_index()
+            df_aducto=df_aducto.drop('index',axis=1)
+            print('\n',df_aducto)
+        # seleccion aducto cfm-id
+        Elemento=driver.find_element_by_id("predict_query_adduct_type")
+        drp=Select(Elemento)
+        if seleccion=='0':
+            adducts=input('\n Escriba el tipo de aducto:')
+            if len(smiles)>1:
+                print('\n ¿desea usar este aducto automaticamente para toda la simulación?')
+                seleccion=input('1-> Si 0-> No \n: ')
+        drp.select_by_visible_text(adducts)
+        if k==0:
+            A=input("\n Presione Enter para continuar")
         next_1=driver.find_element_by_name("commit").click()
         os.system ("cls")
-        print('Origen '+Tipo_S+' opción '+str(k+1)+' de '+str(len(smiles))+'\n')
-        guardar=input(' 1-> Guarda el resultado \n 0-> continuar \n: ')
+        print('Origen '+Tipo_S+' opción '+str(k+1)+' de '+str(len(smiles)))
+        print('\nOpciones vs Aductos asociados a cada opción')
+        print('\n',df_aducto)
+        guardar=input('\n1-> Guarda el resultado \n0-> continuar \n: ')
         if guardar=='1':
             # Pagina de resultados
             # Link descarga resultado
@@ -146,21 +172,33 @@ while rta>0:
             lista_result.update({Tipo_S:str(k+1)})
         else:
             url.append('fallo')
-            fallo=fallo+1
-    # se una crea carpeta para el origen
-    direc=ubi+'/'+Tipo_S
-    os.mkdir(direc)
-    # se guarda el Archivo .csv final en esa carpeta
+            fallo.update(({Tipo_S:str(k+1)}))
     # pagina de descarga de resultados
     # las paginas pueden sufrir caidas por el certificado
-    # Nombre del archivo Final
-    name=Nombres_archivos.get(Tipo_S)
-    for i in range(len(url)):
-        if url[i]!='fallo':
-            archivo=sp_theo.url_to_csv(url[i],direc+'/'+name[i])
+    if lista_result=={}:
+        lista_R='0'
+    else:
+        # se una crea carpeta para el origen
+        direc=ubi+'/'+Tipo_S
+        if os.path.exists(direc)==False:
+            os.mkdir(direc)
+        # se guarda el Archivo .csv final en esa carpeta
+        lista_R=list(lista_result.get(Tipo_S))
+        # Nombre del archivo Final
+        name=Nombres_archivos.get(Tipo_S)
+        for i in range(len(url)):
+            if url[i]!='fallo':
+                archivo=sp_theo.url_to_csv(url[i],direc+'/'+name[i])
+    if fallo=={}:
+        Fallo_R='0'
+    else:
+        Fallo_R=list(fallo.get(Tipo_S))
     os.system ("cls")
-    print('Tipo de origen '+Tipo_S+'resultados positivos'+lista_result)
-    rta=int(input('Desea continuar: 1->Si 0->No\n: '))
+    print('Resultados\n')            
+    print('Tipo de origen '+Tipo_S+'\nopciones')
+    print('\nPositivas \n',lista_R)
+    print('\nFallidas \n',Fallo_R)
+    rta=int(input('\nDesea continuar: 1->Si 0->No\n: '))
     if rta==0:
         os.system ("cls")
         print('Gracias')
