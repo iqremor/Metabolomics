@@ -22,10 +22,13 @@ def fun(nc):
         elemento=nc_l[i].split(" ")
         eV.append(elemento[0])
         xeV.append(elemento[1])
-    return eV,xeV
+    dic_energy={'eV':eV,'xeV':eV}
+    df = pd.DataFrame(dic_energy, columns = ['eV','xeV'])
+    return df
 
 def url_to_csv(pagina,name):
     # Captura de datos "Scrapping"
+    urllib3.exceptions.InsecureRequestWarning()
     urllib3.exceptions.SSLError()#Excepción de certificado de pagina
     page_result = requests.get(pagina,verify=False) 
     soup= BeautifulSoup(page_result.content,'lxml')
@@ -33,6 +36,11 @@ def url_to_csv(pagina,name):
     datos=soup.p.text
     limpieza=datos.split("\n0") # separar los datos energy{0,1 y 2}
     var=limpieza[0]
+    # limpieza adicional
+    if var.find('In-silico')==1:
+            limpieza=var.split("energy0") # separar los datos energy{0,1 y 2}
+            var=limpieza[1]
+            var='energy0'+var
     # Convierte los datos a un data frame
     T_datos=StringIO(var)
     df=pd.read_csv(T_datos)
@@ -53,9 +61,11 @@ def url_to_csv(pagina,name):
         nc=[col[:pos[0]],col[pos[0]+1:]]
     elif len(pos)==2: # caso 3 energias
         nc=[col[:pos[0]],col[pos[0]+1:pos[1]],col[pos[1]+1:]]
+    dict_af={}
     for i in range(len(pos)+1):
-        eV,xeV=fun(nc[i]); k=i*2
-        Archivo_final[T[k]]=eV
-        Archivo_final[T[k+1]]=xeV
+        df=fun(nc[i])
+        dict_af.update({str(i):df})
+    # uniendolas
+    Archivo_final=pd.concat([dict_af['0'],dict_af['1'],dict_af['2']],axis=1)  
     Archivo_final.to_csv(name+'.csv',encoding='utf-8',index=False,header=True,sep=(';'))
     return 
