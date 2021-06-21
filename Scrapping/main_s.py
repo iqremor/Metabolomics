@@ -16,7 +16,7 @@ per minute and 1000 GET requests per second in order to ensure a fair usage
 """
 #==LIBRERIAS USADAS===========================================================
 # libreria propia
-import espectros_teoricos_V1 as sp_theo
+import espectros_teoricos as sp_theo
 #libreria para generar data frames
 import pandas as pd
 #libreria para manejar opciones del sistema
@@ -143,7 +143,6 @@ while rta>0:
             # creacion de multiples pestañas
             if (len(smiles)>1)&(seleccion=='0'):
                 mult_tab=input('¿Desea utilizar multiples pestañas? 1->Si 0->No\n:')
-                indiv_smile=input('¿Desea simular todoso los candidatos? 1->Si 0->No\n:')
                 if mult_tab=='1':
                     cant_tab=int(input('¿Cuantas pestañas?\n:'))
                     # cargar pagina
