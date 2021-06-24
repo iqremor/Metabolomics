@@ -22,7 +22,7 @@ def fun(nc):
         elemento=nc_l[i].split(" ")
         eV.append(elemento[0])
         xeV.append(elemento[1])
-    dic_energy={'eV':eV,'xeV':eV}
+    dic_energy={'eV':eV,'xeV':xeV}
     df = pd.DataFrame(dic_energy, columns = ['eV','xeV'])
     return df
 
