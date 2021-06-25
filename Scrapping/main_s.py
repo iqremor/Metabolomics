@@ -2,17 +2,13 @@
 """
 Created on Fri May  7 01:49:42 2021
 Este script permite obtener datos de la 
-pagina de:
-http://cfmid2.wishartlab.com/predict    --->Versión 2.0
-https://cfmid.wishartlab.com/predict    --->Versión 3.0      
-http://cfmid4.wishartlab.com/predict    --->Versión 4.0
+pagina de: CFM-ID
 @author: RAZC
-#SUGERENCIAS MAXIMO 3 pestañas AL TIEMPO en la V4.0
-Limit exceeded. You are allowed 60 POST requests per minute 
-and 1000 GET requests per second in order to ensure a fair usage 
-of this shared resourceLimit exceeded. You are allowed 60 POST requests 
-per minute and 1000 GET requests per second in order to ensure a fair usage
- of this shared resource
+#SUGERENCIAS:
+->MAXIMO 3 pestañas AL TIEMPO en la V4.0.
+->Limit exceeded. You are allowed 60 POST requests per minute and 1000 GET requests per second in order to ensure a fair usage 
+of this shared resourceLimit exceeded. You are allowed 60 POST requests per minute and 1000 GET requests per second in order
+to ensure a fair usage of this shared resource.
 """
 #==LIBRERIAS USADAS===========================================================
 # libreria propia
@@ -78,40 +74,14 @@ for k in range(len(Tipo_de_origen)):
         cod_smile.append(df_smiles.iloc[i])
     Nombres_archivos.update({str(Tipo_de_origen[k]):Nombre})
     S_tipo.update({str(Tipo_de_origen[k]):cod_smile})
-
 #=SELECCION DE ADUCTOS========================================================
-aductos=base_datos.copy()
-aductos=aductos.drop(['Unnamed: 0', 'Names', 'Chemical.Formula',
-                      'Monoisotopic.Molecular.Weight', 'SMILES', 'PubChem',
-                      'Molecular.Weight'],axis=1)
-cols_aductos=['origen','M.H', 'X.M.2H.', 'M.Na', 'M.K', 'M.NH4', 'M.H.H2O', 'M.3H', 'M.2H.Na',
-       'M.H.2Na', 'M.3Na', 'M.H.NH4', 'M.H.Na', 'M.H.K', 'M.ACN.2H', 'M.2Na',
-       'M.2ACN.2H', 'M.3ACN.2H', 'M.CH3OH.H', 'M.ACN.H', 'M.2Na.H',
-       'M.Isoprop.H', 'M.ACN.Na', 'M.2K.H', 'M.2ACN.H', 'M.Isoprop.Na.H',
-       'X2M.H', 'X2M.NH4', 'X2M.Na', 'X2M.K', 'X2M.ACN.H', 'X2M.ACN.Na',
-       ]
-aductos=aductos[cols_aductos]
-# Clasificación de origenes y sus respectivos aductos
-dict_dF={}; lista_aduc_dict={}
-for i in range(len(Tipo_de_origen)):
-    Tp_o=Tipo_de_origen[i]
-    filtro=aductos[aductos["origen"]==Tp_o]
-    dict_dF.update({str(Tp_o):filtro})
-# seleccion aducto mas cercano al origen
-    aduct_o={}
-    rango=0.2 # incertidumbre en la masa
-    Tp_omax=Tp_o+rango;Tp_omin=Tp_o-rango
-    dict_aduct=dict_dF[str(Tp_o)]
-    for j in range(1,len(cols_aductos)):
-        cols=cols_aductos[j] 
-        dict_o=dict_aduct[str(cols)]
-        filtro=dict_o[(dict_o<=Tp_omax)&(dict_o>=Tp_omin)]
-        if filtro.size!=0:
-            aduct_o.update({str(cols):len(filtro)})
-    # lista de aductos con peso molecular cercanos al origen
-    lista_aductos=list(aduct_o.keys())
-    lista_aduc_dict.update({str(Tp_o):lista_aductos}) 
+rango=0.2 # incertidumbre en la masa
+aductos,lista_aduc_dict,dict_dF=sp_theo.aductos(base_datos,Tipo_de_origen,rango)
 #=CREACION DE CARPETAS========================================================
+# lista de aductos que simula el CFM-ID
+adducts_p={"[M+H]+":'mh',"[M]+":'m_p',"[M+NH4]+":'m_nh4',
+           "[M+Na]+":'m_na',"[M+K]+":'m_k',"[M+Li]+":'m_li',"Unknown":'u'}
+adducts_keys=list(adducts_p.keys())
 rta=2
 ubi='Resultados' # carpeta de ubicación resultados
 if os.path.exists(ubi)==False:
@@ -124,111 +94,92 @@ while rta>0:
     if Tipo_S[-1]=='0':
         Tipo_S=Tipo_S[0:len(Tipo_S)-1]
     smiles=S_tipo.get(Tipo_S)
+    df_aducto=dict_dF[str(Tipo_S)]
     pre_aducto=1
+    if rta==2:
+        # navegador
+        driver=webdriver.Firefox(executable_path="geckodriver.exe")  
     while pre_aducto>0:
-        url=[] 
         # lista resultados positivos o fallidos
         completado_lis=[];fallo_lis=[]
-        # lista de aductos que simula el CFM-ID
-        adducts_p={"[M+H]+":'mh',"[M]+":'m_p',"[M+NH4]+":'m_nh4',
-                   "[M+Na]+":'m_na',"[M+K]+":'m_k',"[M+Li]+":'m_li',"Unknown":'u'}
+        url=[] ;lis_aduct_simu=[]    
         seleccion='0'
-        #---Trabajo Bot------------------------------------------------------------
-        # navegador
-        if rta==2:
-            driver=webdriver.Firefox(executable_path="geckodriver.exe")  
-        k=0
+        k=0;cant_tab=1    
         while k <(len(smiles)):
-            # pagina de ingreso de smiles
-            # creacion de multiples pestañas
-            if (len(smiles)>1)&(seleccion=='0'):
-                mult_tab=input('¿Desea utilizar multiples pestañas? 1->Si 0->No\n:')
-                if mult_tab=='1':
-                    cant_tab=int(input('¿Cuantas pestañas?\n:'))
-                    # cargar pagina
-                    driver.get(page)
-                    input_smile=driver.find_element_by_name("predict_query[compound]")
-                    input_smile.send_keys(smiles[k])
-                    for j in range(1,cant_tab):
-                        driver.execute_script("window.open('');")
-                        driver.switch_to.window(driver.window_handles[j])
-                        driver.get(page)
-                        input_smile=driver.find_element_by_name("predict_query[compound]")
-                        input_smile.send_keys(smiles[k+j])
-                else:
-                    driver.get(page)
-                    input_smile=driver.find_element_by_name("predict_query[compound]")
-                    input_smile.send_keys(smiles[k])
-            elif seleccion=='1':
-                # cargar pagina
-                driver.get(page)
-                input_smile=driver.find_element_by_name("predict_query[compound]")
-                input_smile.send_keys(smiles[k])
-                if cant_tab>abs(k-len(smiles)):
-                    cant_tab=abs(k-len(smiles))
-                for j in range(1,cant_tab):
-                    driver.execute_script("window.open('');")
-                    driver.switch_to.window(driver.window_handles[j])
-                    driver.get(page)
-                    input_smile=driver.find_element_by_name("predict_query[compound]")
-                    input_smile.send_keys(smiles[k+j])
-            else:
-                # cargar pagina
-                driver.get(page)
-                input_smile=driver.find_element_by_name("predict_query[compound]")
-                input_smile.send_keys(smiles[k])      
-            os.system ("cls")
             if k==0:
-                print('\n Lista de aductos de modo ion positivos que simula CFM-ID')
-                print('\n',list(adducts_p.keys()))
                 # Primer click submit envio de datos
-                print('Tipo de origen: '+Tipo_S)
+                print('\n Tipo de origen: '+Tipo_S)
                 print('\n Candidatos vs Aductos asociados a cada opción')
                 # Tipo de aducto
                 # Clasificación de aductos    
-                diferencia=list(set(cols_aductos).difference(set(lista_aduc_dict.get(Tipo_S))))
-                df_aducto=dict_dF.get(Tipo_S)
-                df_aducto=df_aducto.drop(diferencia,axis=1)
-                Tp_max=float(Tipo_S)+rango;Tp_min=float(Tipo_S)-rango
-                lista_aducto_p=lista_aduc_dict.get(Tipo_S)
-                for i in range(len(lista_aducto_p)):
-                    aduc_l=lista_aducto_p[i]
-                    df_aducto.loc[(df_aducto[aduc_l]>Tp_max)|(df_aducto[aduc_l]<Tp_min),aduc_l] = ''
-                df_aducto=df_aducto.reset_index()
-                df_aducto=df_aducto.drop('index',axis=1)
                 print('\n',df_aducto)
-            # seleccion aducto cfm-id
-            if seleccion=='0':
-                adducts=input('\n Escriba el tipo de aducto:')
+                print('\n Lista de aductos de modo ion positivos que simula CFM-ID')
+                print('\n Número de aducto:',list(range(1,8)))
+                print('\n Tipo de aducto:',list(adducts_p.keys()))
+                adducts=int(input('\n Escriba el número correspondiente al tipo de aducto: '))-1
+                adducts=adducts_keys[adducts]
+                # seleccion aducto cfm-id
                 if len(smiles)>1:
-                    print('\n ¿desea usar este aducto automaticamente para toda la simulación?')
-                    seleccion=input('1-> Si 0-> No \n: ')
-            if (len(smiles)>1)&((k+1)<len(smiles)):
-                for j in range(cant_tab):
-                    driver.switch_to.window(driver.window_handles[j])
-                    Elemento=driver.find_element_by_id("predict_query_adduct_type")
-                    drp=Select(Elemento)
-                    drp.select_by_visible_text(adducts)
-            else:     
-                Elemento=driver.find_element_by_id("predict_query_adduct_type")
-                drp=Select(Elemento)
-                drp.select_by_visible_text(adducts)
-            if seleccion=='1':
-                A=input("\n Presione Enter para continuar")
-            if (len(smiles)>1):
-                for j in range(cant_tab):
-                    driver.switch_to.window(driver.window_handles[j])
-                    next_1=driver.find_element_by_name("commit").click()
+                    indiv_smile=input('¿Desea simular todos los candidatos? 1->Si 0->No\n:')
+                    if indiv_smile=='1':
+                        print('\n ¿Desea usar este aducto automaticamente para toda la simulación?')
+                        seleccion=input('1-> Si 0-> No \n: ')
+                    else:
+                        agre=1
+                        print('\n ¿Desea usar este aducto automaticamente para toda la simulación?')
+                        seleccion=input('1-> Si 0-> No \n: ')
+                        while agre>0:
+                            lis_aduct_simu.append(int(input('\nIngrese el número del candidato:'))-1)
+                            agre=int(input('\nDesea ingresar otro candidato 1->Si 0->No\n:'))
+                else:
+                    indiv_smile='0'
+                    
+               #---Trabajo Bot------------------------------------------------------------
+            if indiv_smile=='1':
+                sp_theo.scrap(driver,page,k,smiles,adducts)
+                # creacion de multiples pestañas
+                if (len(smiles)>1)&(seleccion=='1'):
+                    if k==0:
+                        mult_tab=input('¿Desea utilizar multiples pestañas? 1->Si 0->No\n:')
+                        if mult_tab=='1':
+                            cant_tab=int(input('¿Cuantas pestañas?\n:'))
+                    if cant_tab>abs(k-len(smiles)):
+                        cant_tab=abs(k-len(smiles))
+                    for j in range(1,cant_tab):
+                        # cargar pagina 
+                        driver.execute_script("window.open('');")
+                        driver.switch_to.window(driver.window_handles[j])
+                        R=k+j
+                        sp_theo.scrap(driver,page,R,smiles,adducts)
             else:
-                next_1=driver.find_element_by_name("commit").click()
+                if len(smiles)>1:
+                    r=lis_aduct_simu[k]
+                else:
+                    r=k
+                sp_theo.scrap(driver,page,r,smiles,adducts)
+                if (len(lis_aduct_simu)>1)&(seleccion=='1'):
+                    mult_tab=input('¿Desea utilizar multiples pestañas? 1->Si 0->No\n:')
+                    if mult_tab=='1':
+                        cant_tab=int(input('¿Cuantas pestañas?\n:'))
+                    if cant_tab>abs(k-len(lis_aduct_simu)):
+                        cant_tab=abs(k-len(lis_aduct_simu))
+                    for j in range(cant_tab):
+                        r=lis_aduct_simu[j]                
+                        # abrir una nueva pestaña
+                        driver.execute_script("window.open('');")
+                        driver.switch_to.window(driver.window_handles[j])
+                        sp_theo.scrap(driver,page,r,smiles,adducts)
+            if cant_tab>1|k==0:
+                A=input("\n Presione Enter para continuar")           
             os.system ("cls")
-            if len(smiles)>1:
-                print('\nCandidatos vs Aductos asociados a cada opción')
-                print('\n',df_aducto)
+            print("\n Origen "+Tipo_S)
+            print('\nCandidatos vs Aductos asociados a cada opción')
+            print('\n',df_aducto)
+            if (len(smiles)>1)&(cant_tab>1):
                 for j in range(cant_tab):
                     K=k+j
                     driver.switch_to.window(driver.window_handles[0])
-                    print('Origen '+Tipo_S+' opción '+str(K+1)+' de '+str(len(smiles)))
+                    print('Candidatos '+str(K+1)+' de '+str(len(smiles)))
                     guardar=input('\n1-> Guarda el resultado \n0-> continuar \n: ')
                     if guardar=='1':
                         # Pagina de resultados
@@ -243,10 +194,22 @@ while rta>0:
                     if (j+1)<cant_tab:
                         driver.close()
                 k=k+cant_tab
+            elif (indiv_smile=='0')&(len(smiles)>1):
+                print('Candidatos '+str(lis_aduct_simu[k]+1)+' de '+str(len(smiles)))
+                guardar=input('\n1-> Guarda el resultado \n0-> continuar \n: ')
+                if guardar=='1':
+                    # Pagina de resultados
+                    # Link descarga resultado
+                    next_1=driver.find_element_by_class_name('btn-download')
+                    next_1.click()
+                    url.append(str(driver.current_url))
+                    completado_lis.append(str(k+1))
+                else:
+                    url.append('fallo')
+                    fallo_lis.append(str(k+1))
+                break
             else:
-                print('Origen '+Tipo_S+' opción '+str(k+1)+' de '+str(len(smiles)))
-                print('\nCandidatos vs Aductos asociados a cada opción')
-                print('\n',df_aducto)
+                print('Candidatos '+str(k+1)+' de '+str(len(smiles)))
                 guardar=input('\n1-> Guarda el resultado \n0-> continuar \n: ')
                 if guardar=='1':
                     # Pagina de resultados
@@ -259,7 +222,7 @@ while rta>0:
                     url.append('fallo')
                     fallo_lis.append(str(k+1))
                 k=k+1
-        # pagina de descarga de resultados
+#---- pagina de descarga de resultados----------------------------------------
         # las paginas pueden sufrir caidas por el certificado
         if completado_lis==[]:
             lista_R='0'
@@ -273,17 +236,22 @@ while rta>0:
             # Nombre del archivo Final
             name=Nombres_archivos.get(Tipo_S)
             for i in range(len(url)):
-                if url[i]!='fallo':
-                    archivo=sp_theo.url_to_csv(url[i],direc+'/'+name[i]+'_'+adducts_p[adducts])
+                if indiv_smile=='1':
+                    if url[i]!='fallo':
+                        archivo=sp_theo.url_to_csv(url[i],direc+'/'+name[i]+'_'+adducts_p[adducts])
+                else:
+                    r=lis_aduct_simu[i]
+                    if url[i]!='fallo':
+                        archivo=sp_theo.url_to_csv(url[r],direc+'/'+name[r]+'_'+adducts_p[adducts])                
         if fallo_lis==[]:
             Fallo_R='0'
         else:
             Fallo_R=fallo_lis
         os.system ("cls")
-        print('Resultados\n')            
-        print('Tipo de origen '+Tipo_S+'\nCandidatos')
-        print('\nRealizadas \n',lista_R)
-        print('\nFallidas \n',Fallo_R)
+        print('Resultados')            
+        print('\nTipo de origen '+Tipo_S+'\nCandidatos')
+        print('\nRealizados \n',lista_R)
+        print('\nFallidos \n',Fallo_R)
         pre_aducto=int(input('\n ¿Desea utilizar otro aducto?: 1->Si 0->No\n:'))
         rta=pre_aducto
     rta=int(input('\n¿Desea continuar con otro origen?: 1->Si 0->No\n: '))
