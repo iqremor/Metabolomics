@@ -2,11 +2,8 @@
 title: "test"
 author: "Martha Zuluaga"
 date: "22/6/2021"
-output:
-  word_document: default
-  html_document:
-    df_print: paged
-  pdf_document: default
+output: html_document:
+
 ---
 
 ```{r setup, include=FALSE}
